@@ -102,6 +102,29 @@ class GTFSToolkit:
         ]
         return {"ok": True, "trips": hits, "count": len(hits)}
 
+    def list_route_stops(self, route_id: str, direction_id: Optional[str] = None) -> Dict:
+        """List the ordered stops (with names) of a route, using its most
+        representative (longest) trip. Read-only convenience for answering
+        questions."""
+        trips = [t for t in self.feed.tables.get("trips.txt", [])
+                 if t.get("route_id") == route_id
+                 and (direction_id is None or t.get("direction_id") == str(direction_id))]
+        if not trips:
+            return {"ok": False, "error": f"no trips for route {route_id!r}"}
+        st = self.feed.tables.get("stop_times.txt", [])
+        best, best_rows = None, []
+        for t in trips[:100]:
+            rows = [r for r in st if r["trip_id"] == t["trip_id"]]
+            if len(rows) > len(best_rows):
+                best, best_rows = t, rows
+        best_rows.sort(key=lambda r: int(r["stop_sequence"]))
+        names = {s["stop_id"]: s.get("stop_name", "") for s in self.feed.tables.get("stops.txt", [])}
+        stops = [{"stop_sequence": r["stop_sequence"], "stop_id": r["stop_id"],
+                  "stop_name": names.get(r["stop_id"], ""), "arrival_time": r.get("arrival_time", "")}
+                 for r in best_rows]
+        return {"ok": True, "route_id": route_id, "trip_id": best["trip_id"],
+                "stops": stops, "count": len(stops)}
+
     def get_stop_times(self, trip_id: str) -> Dict:
         """Return a trip's stop_times rows, ordered by stop_sequence."""
         rows = [

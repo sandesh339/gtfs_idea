@@ -3,11 +3,12 @@ const LABELS = {
   codegen: 'code generation',
   'fc->codegen': 'FC → code-gen',
   clarify: 'clarify',
+  query: 'query (read-only)',
 }
 
 export default function RouterBadge({ decision }) {
   if (!decision) return null
-  const cls = decision.ambiguous ? 'clarify' : decision.tool_fit
+  const cls = decision.path === 'query' ? 'query' : (decision.ambiguous ? 'clarify' : decision.tool_fit)
   return (
     <div>
       <span className={`badge ${cls}`}>

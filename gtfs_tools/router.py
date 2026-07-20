@@ -46,6 +46,11 @@ Decide three things:
 
 3) confidence — your certainty (0..1).
 
+4) is_query — true if the user is ASKING for information about the feed rather than
+   requesting a change (e.g. "list the stops on route X", "how many trips", "what is
+   the headway", "show me..."). Read-only questions are ANSWERED, not edited. If the
+   user wants to modify the feed, is_query is false.
+
 If ambiguous, put the single most useful question in clarifying_question; otherwise
 leave it empty. Keep reason to one sentence.
 
@@ -62,13 +67,14 @@ ROUTE_SCHEMA = {
     "properties": {
         "tool_fit": {"type": "string", "enum": ["high", "medium", "low"]},
         "ambiguous": {"type": "boolean"},
+        "is_query": {"type": "boolean"},
         "confidence": {"type": "number"},
         "clarifying_question": {"type": "string"},
         "resolved_request": {"type": "string"},
         "reason": {"type": "string"},
     },
-    "required": ["tool_fit", "ambiguous", "confidence", "clarifying_question",
-                 "resolved_request", "reason"],
+    "required": ["tool_fit", "ambiguous", "is_query", "confidence",
+                 "clarifying_question", "resolved_request", "reason"],
 }
 
 
@@ -80,9 +86,12 @@ class RouteDecision:
     clarifying_question: str
     reason: str
     resolved_request: str = ""
+    is_query: bool = False
 
     @property
     def path(self) -> str:
+        if self.is_query:
+            return "query"                 # read-only question -> answer, don't edit
         if self.ambiguous:
             return "clarify"
         return {"high": "fc", "low": "codegen", "medium": "fc->codegen"}[self.tool_fit]
@@ -117,4 +126,5 @@ class Router:
             confidence=float(data["confidence"]),
             clarifying_question=data.get("clarifying_question", ""),
             reason=data.get("reason", ""),
-            resolved_request=data.get("resolved_request", ""))
+            resolved_request=data.get("resolved_request", ""),
+            is_query=bool(data.get("is_query", False)))

@@ -24,6 +24,7 @@ from .llm import LLMClient
 from .router import Router, RouteDecision
 from .executor import ReActExecutor
 from .codegen import CodeGenExecutor
+from .query import QueryExecutor
 from .diffing import summarize_changes, entity_changes, structured_diff
 
 
@@ -49,6 +50,7 @@ class ChatSession:
         self.router = Router(client)
         self.fc = ReActExecutor(client)
         self.cg = CodeGenExecutor(client)
+        self.query = QueryExecutor(client)
         self.history: List[dict] = []
         self._undo: List[Feed] = []
         self._codegen: Optional[dict] = None   # in-flight client code-gen state
@@ -76,7 +78,11 @@ class ChatSession:
         # message — otherwise "Use 36.9088, -116.7647" loses its intent.
         req = decision.resolved_request.strip() or message
 
-        if decision.path == "clarify":
+        if decision.path == "query":
+            result = self.query.run(self.feed, req)
+            resp = Response("answer", result.answer, decision, mechanism="query",
+                            cost={"calls": result.num_calls, "repairs": 0})
+        elif decision.path == "clarify":
             resp = Response("clarify", decision.clarifying_question or
                             "Could you give more detail?", decision)
         elif decision.path == "fc":
