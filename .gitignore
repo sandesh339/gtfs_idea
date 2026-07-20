@@ -1,0 +1,30 @@
+# --- secrets / env (NEVER commit) ---
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.local
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# --- node / frontend build ---
+node_modules/
+frontend/dist/
+
+# --- app data / outputs (transient, may contain user feeds) ---
+/out/
+sessions/
+
+# --- large / generated assets ---
+data/sample-feed.zip
+vendor/*.jar
+vendor/_baseline/
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db

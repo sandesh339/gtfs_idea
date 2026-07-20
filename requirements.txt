@@ -1,0 +1,9 @@
+openai>=2.0
+python-dotenv>=1.0
+pandas>=2.0
+# --- web backend ---
+fastapi>=0.104
+uvicorn>=0.24
+python-multipart>=0.0.6
+requests>=2.31        # RemoteOfficialValidator -> Cloud Run validator service
+supabase>=2.0        # session storage/reconstruction (dev falls back to LocalDiskStorage)
