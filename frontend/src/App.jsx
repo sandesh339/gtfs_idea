@@ -6,6 +6,7 @@ import MapView from './components/MapView.jsx'
 import TableView from './components/TableView.jsx'
 import DiffView from './components/DiffView.jsx'
 import ValidationView from './components/ValidationView.jsx'
+import Gate from './components/Gate.jsx'
 
 const TABS = ['map', 'tables', 'diff', 'validation']
 const WS_KEY = 'gtfs-ws'          // localStorage: { feeds, activeSid, chats }
@@ -44,6 +45,9 @@ export default function App() {
   const [diffs, setDiffs] = useState({})          // { sid: cumulative diff }
   const [diffBusy, setDiffBusy] = useState(false)
   const [uploadStatus, setUploadStatus] = useState('')
+  const [gate, setGate] = useState(false)
+  const [gateError, setGateError] = useState('')
+  const tried = useRef(false)
   const fileRef = useRef(null)
   const loaded = useRef(false)
   const activeSidRef = useRef(null)
@@ -54,7 +58,21 @@ export default function App() {
   const changedStops = stopsFromChanges(lastChanges)
 
   // ---- persistence -----------------------------------------------------
-  useEffect(() => { resume() }, [])
+  useEffect(() => {
+    api.onUnauthorized(() => {
+      setGate(true)
+      if (tried.current) setGateError('Invalid access code — try again.')
+    })
+    resume()
+  }, [])
+
+  async function submitCode(code) {
+    api.setToken(code)
+    tried.current = true
+    setGateError('')
+    setGate(false)
+    await resume()   // retry; a bad code triggers 401 -> gate reappears with the error
+  }
   useEffect(() => {
     if (!loaded.current) return
     localStorage.setItem(WS_KEY, JSON.stringify({ feeds, activeSid, chats }))
@@ -243,6 +261,8 @@ export default function App() {
   }
 
   const canDownload = activeSid && activeSid !== '__err'
+
+  if (gate) return <Gate error={gateError} onSubmit={submitCode} />
 
   return (
     <div className="app">

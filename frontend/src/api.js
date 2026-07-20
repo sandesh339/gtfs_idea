@@ -1,14 +1,27 @@
 const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
-const TOKEN = import.meta.env.VITE_REVIEWER_TOKEN || ''
+const ENV_TOKEN = import.meta.env.VITE_REVIEWER_TOKEN || ''  // dev fallback only
+
+// The access code lives in localStorage (entered via the gate). Falls back to a
+// build-time env token for local dev convenience.
+function getToken() {
+  return localStorage.getItem('reviewer_token') || ENV_TOKEN || ''
+}
+
+let unauthorizedHandler = null   // App registers this to show the access-code gate
 
 function headers() {
   const h = { 'Content-Type': 'application/json' }
-  if (TOKEN) h['X-Reviewer-Token'] = TOKEN
+  const t = getToken()
+  if (t) h['X-Reviewer-Token'] = t
   return h
 }
 
 async function req(path, opts = {}) {
   const res = await fetch(`${BASE}${path}`, { headers: headers(), ...opts })
+  if (res.status === 401) {
+    unauthorizedHandler?.()
+    const e = new Error('unauthorized'); e.status = 401; throw e
+  }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}))
     throw new Error(detail.detail || `${res.status} ${res.statusText}`)
@@ -17,6 +30,12 @@ async function req(path, opts = {}) {
 }
 
 export const api = {
+  // ---- access-code (reviewer token) management ----
+  setToken: (t) => localStorage.setItem('reviewer_token', (t || '').trim()),
+  clearToken: () => localStorage.removeItem('reviewer_token'),
+  hasToken: () => !!getToken(),
+  onUnauthorized: (fn) => { unauthorizedHandler = fn },
+
   health: () => req('/health'),
 
   newSession: () => req('/api/session?source=demo', { method: 'POST' }),
@@ -24,8 +43,10 @@ export const api = {
   uploadSession: async (file) => {
     const form = new FormData()
     form.append('file', file)
-    const h = TOKEN ? { 'X-Reviewer-Token': TOKEN } : {}
+    const t = getToken()
+    const h = t ? { 'X-Reviewer-Token': t } : {}
     const res = await fetch(`${BASE}/api/session/upload`, { method: 'POST', headers: h, body: form })
+    if (res.status === 401) { unauthorizedHandler?.(); const e = new Error('unauthorized'); e.status = 401; throw e }
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText)
     return res.json()
   },
@@ -73,9 +94,6 @@ export const api = {
   validate: (sid) => req(`/api/session/${sid}/validate`),
 
   diff: (sid) => req(`/api/session/${sid}/diff`),
-
-  downloadUrl: (sid, scope = 'full') =>
-    `${BASE}/api/session/${sid}/download?scope=${scope}` + (TOKEN ? '' : ''),
 
   // download needs the token header, so fetch as blob and trigger a save
   download: async (sid, scope = 'full') => {
