@@ -300,7 +300,7 @@ export default function App() {
             ))}
           </div>
           <div className="tab-body">
-            {tab === 'map' && <MapView feed={feed} changedStops={changedStops} />}
+            {tab === 'map' && <MapView feed={feed} changedStops={changedStops} feedKey={activeSid} />}
             {tab === 'tables' && <TableView feed={feed} sid={activeSid} />}
             {tab === 'diff' && canDownload && (
               <DiffView key={activeSid} data={diffs[activeSid]} feed={feed}

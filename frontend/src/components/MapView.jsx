@@ -76,10 +76,10 @@ function fitToStops(map, geo) {
   } catch { /* ignore degenerate bounds */ }
 }
 
-export default function MapView({ feed, changedStops }) {
+export default function MapView({ feed, changedStops, feedKey }) {
   const ref = useRef(null)
   const mapRef = useRef(null)
-  const fitted = useRef(false)
+  const lastKey = useRef(null)          // which feed we last fit the view to
   const [ready, setReady] = useState(false)
   const changed = changedStops || new Set()
 
@@ -120,8 +120,13 @@ export default function MapView({ feed, changedStops }) {
         paint: { 'text-color': '#374151', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } })
     })
 
-    if (!fitted.current && geo.stops.features.length) { fitToStops(map, geo); fitted.current = true }
-  }, [feed, changedStops, ready])
+    // Re-center only when the ACTIVE feed changes (upload / switch), not on edits
+    // (edits keep the current zoom and just highlight what changed).
+    if (feedKey !== lastKey.current && geo.stops.features.length) {
+      fitToStops(map, geo)
+      lastKey.current = feedKey
+    }
+  }, [feed, changedStops, ready, feedKey])
 
   return (
     <>
