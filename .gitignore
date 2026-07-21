@@ -28,3 +28,6 @@ vendor/_baseline/
 # --- os / editor ---
 .DS_Store
 Thumbs.db
+
+# --- files ---
+.pdf
