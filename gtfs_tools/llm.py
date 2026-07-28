@@ -54,7 +54,14 @@ class OpenAIClient(LLMClient):
         from openai import OpenAI
         self.model = model
         self.name = f"openai:{model}"
+        self.total_tokens = 0     # accumulated across this client's calls (for the benchmark)
         self._client = OpenAI(api_key=api_key, base_url=base_url or None)
+
+    def _account(self, resp):
+        try:
+            self.total_tokens += resp.usage.total_tokens or 0
+        except Exception:
+            pass
 
     @staticmethod
     def _tools_to_openai(tools: List[Dict]) -> List[Dict]:
@@ -88,6 +95,7 @@ class OpenAIClient(LLMClient):
             kwargs["tools"] = self._tools_to_openai(tools)
             kwargs["tool_choice"] = "auto"
         resp = self._client.chat.completions.create(**kwargs)
+        self._account(resp)
         msg = resp.choices[0].message
         calls = []
         for tc in (msg.tool_calls or []):
@@ -105,6 +113,7 @@ class OpenAIClient(LLMClient):
             response_format={"type": "json_schema",
                              "json_schema": {"name": name, "schema": schema, "strict": True}},
         )
+        self._account(resp)
         return json.loads(resp.choices[0].message.content)
 
 
