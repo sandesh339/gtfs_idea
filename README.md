@@ -4,18 +4,6 @@ A GTFS feed-editing system with an intelligent **router** that dispatches each
 request to **function calling** or **code generation**, plus a controlled
 benchmark that maps where each mechanism wins. See `June26Meeting.pdf`.
 
-## Status
-
-- [x] Frozen function-calling tool library (`gtfs_tools/tools.py`, 20 ops)
-- [x] In-memory feed model (`feed.py`), scope grammar (`scope.py`)
-- [x] ReAct executor with matched repair rounds (`executor.py`)
-- [x] Provider-agnostic LLM layer — GPT live (`llm.py`)
-- [x] Oracle/grader: validity, correctness, integrity, damage, cost (`grader.py`)
-- [x] Official MobilityData GTFS validator integration (`gtfs_validator.py`)
-- [ ] Code-generation path (2nd mechanism)
-- [ ] Router (predicts tool-fit / ambiguity)
-- [ ] Expand scenarios 7 → 40; reconcile scenarios with the feed
-
 ## Setup
 
 ```bash
@@ -101,10 +89,10 @@ CLEANUP_TOKEN=some-secret
 
 ## Grading dimensions (per scenario)
 
-| Dimension   | Meaning |
-|-------------|---------|
+| Dimension   | Meaning                                                                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | validity    | feed still valid (lightweight by default; official GTFS validator with `--official`, baseline-delta so pre-existing notices don't count) |
-| correctness | the intended diff happened (per-scenario answer key) |
-| integrity   | scenario invariants (sequence contiguity, monotonic times, refs) |
-| damage      | nothing outside the sanctioned scope changed (entity-level diff) |
-| cost        | tool calls / repair rounds (the boundary-map signal) |
+| correctness | the intended diff happened (per-scenario answer key)                                                                                     |
+| integrity   | scenario invariants (sequence contiguity, monotonic times, refs)                                                                         |
+| damage      | nothing outside the sanctioned scope changed (entity-level diff)                                                                         |
+| cost        | tool calls / repair rounds (the boundary-map signal)                                                                                     |
