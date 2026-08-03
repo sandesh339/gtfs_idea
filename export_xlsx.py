@@ -14,7 +14,7 @@ from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 
 MECH = {"fc": "FC", "codegen": "CG"}
-TIER_ORDER = ["mini", "std", "pro"]
+TIER_ORDER = ["nano", "mini", "gpt5"]
 GREEN, AMBER, RED, GRAY = "C6EFCE", "FFEB9C", "FFC7CE", "F2F2F2"
 
 

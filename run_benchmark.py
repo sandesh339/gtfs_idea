@@ -25,12 +25,23 @@ from gtfs_tools.codegen import CodeGenExecutor
 from gtfs_tools.llm import OpenAIClient
 from gtfs_tools.diffing import summarize_changes
 from gtfs_tools.validation_summary import ValidatorSummarizer
-from benchmark_scenarios import SCENARIOS
+from benchmark_scenarios import SCENARIOS_BY_FEED, SCENARIOS
 
 # tier -> model id (override with --models); set these to ids your key can call.
-DEFAULT_MODELS = {"mini": "gpt-5-mini", "std": "gpt-5", "pro": "gpt-5-pro"}
-FEEDS = {"demo": os.path.join("data", "sample-feed")}
+# GPT-5 family, low->high by size: nano < mini < gpt-5. All run on Chat Completions.
+DEFAULT_MODELS = {"nano": "gpt-5-nano", "mini": "gpt-5-mini", "gpt5": "gpt-5"}
+FEEDS = {"demo": os.path.join("data", "sample-feed"),
+         "mbta": os.path.join("data", "mbta10")}
 MECHANISMS = ("fc", "codegen")
+
+# feeds are parsed once and cloned per run (MBTA slice is ~350k stop_times rows).
+_FEED_CACHE = {}
+
+
+def get_pristine(feed_dir):
+    if feed_dir not in _FEED_CACHE:
+        _FEED_CACHE[feed_dir] = Feed.load(feed_dir)
+    return _FEED_CACHE[feed_dir]
 
 
 def make_executor(mechanism, client):
@@ -73,23 +84,25 @@ def main() -> int:
         models = dict(p.split("=", 1) for p in args.models.split(","))
     feeds = {f: FEEDS[f] for f in args.feeds.split(",") if f in FEEDS}
     mechs = [m for m in args.mechanisms.split(",") if m in MECHANISMS]
-    scen = SCENARIOS
-    if args.scenarios:
-        want = set(args.scenarios.split(","))
-        scen = [s for s in SCENARIOS if s[0] in want]
+    want = set(args.scenarios.split(",")) if args.scenarios else None
+
+    def scen_for(feed_name):
+        s = SCENARIOS_BY_FEED.get(feed_name, SCENARIOS)
+        return [x for x in s if x[0] in want] if want else s
 
     summarizer = ValidatorSummarizer()
     skip = done_keys(args.out) if args.resume else set()
 
-    total = len(models) * len(mechs) * len(scen) * len(feeds) * args.trials
+    total = len(models) * len(mechs) * args.trials * sum(len(scen_for(f)) for f in feeds)
     print(f"planning {total} runs -> {args.out}  "
-          f"({len(models)} models x {len(mechs)} mech x {len(scen)} scen x {len(feeds)} feed x {args.trials} trials)")
+          f"({len(models)} models x {len(mechs)} mech x "
+          f"{{{', '.join(f'{f}:{len(scen_for(f))}' for f in feeds)}}} scen/feed x {args.trials} trials)")
 
     n = 0
     with open(args.out, "a", encoding="utf-8") as out:
         for tier, model_id in models.items():
             for feed_name, feed_dir in feeds.items():
-                for (sid, group, hyp, request) in scen:
+                for (sid, group, hyp, request) in scen_for(feed_name):
                     for mech in mechs:
                         for trial in range(1, args.trials + 1):
                             if args.limit and n >= args.limit:
@@ -114,8 +127,8 @@ def run_one(model_id, tier, mech, feed_name, feed_dir, sid, group, hyp, request,
     row = {"model": model_id, "tier": tier, "mechanism": mech, "feed": feed_name,
            "scenario": sid, "group": group, "hypothesis": hyp, "trial": trial}
     client = OpenAIClient(model=model_id, api_key=key, base_url=base_url)
-    pristine = Feed.load(feed_dir)
-    edit = Feed.load(feed_dir)
+    pristine = get_pristine(feed_dir)   # parsed once, treated read-only
+    edit = pristine.copy()              # independent clone the executor mutates
     t0 = time.perf_counter()
     try:
         result = make_executor(mech, client).run(edit, request)
