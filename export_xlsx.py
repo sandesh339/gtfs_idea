@@ -79,6 +79,28 @@ def build_scorecard(agg):
     return out[ordered], [label[c] for c in cols]
 
 
+def outcome_pivot(df):
+    """Decompose runs into WHY they landed where they did (Stage-1 fix #5):
+    pass / refrained / no_change / invalid / acted / error, per group x mechanism,
+    plus how many hit the FC call ceiling."""
+    if "outcome" not in df:
+        return pd.DataFrame()
+    order = ["pass", "refrained", "no_change", "invalid", "acted", "error"]
+    piv = (df.groupby(["group", "mechanism", "outcome"]).size()
+             .unstack("outcome", fill_value=0).reset_index())
+    for c in order:
+        if c not in piv:
+            piv[c] = 0
+    agg_kw = {"n": ("outcome", "size")}
+    if "ceiling" in df:
+        agg_kw["ceiling_hits"] = ("ceiling", "sum")
+    extra = df.groupby(["group", "mechanism"]).agg(**agg_kw).reset_index()
+    piv = piv.merge(extra, on=["group", "mechanism"])
+    piv["mechanism"] = piv["mechanism"].map(MECH).fillna(piv["mechanism"])
+    tail = ["ceiling_hits", "n"] if "ceiling" in df else ["n"]
+    return piv[["group", "mechanism"] + order + tail].sort_values(["group", "mechanism"])
+
+
 def group_summary(agg):
     keys = ["group", "tier", "model", "mechanism"]
     gs = agg.groupby(keys, dropna=False).agg(
@@ -95,14 +117,17 @@ LEGEND = [
     ["Scenarios", "Per-scenario pass-rate for each model x mechanism (passes/trials). Colour: green=all passed, amber=some, red=none, grey=not run."],
     ["Details", "Aggregated metrics per scenario x model x mechanism x feed."],
     ["Group summary", "Rollups per transit-domain group x model x mechanism."],
+    ["Outcomes", "WHY runs landed where they did, per group x mechanism: pass / refrained / no_change / invalid / acted / error, plus FC call-ceiling hits."],
     ["", ""],
     ["Term", "Meaning"],
     ["mechanism", "FC = function calling; CG = code generation + self-repair."],
-    ["passed (Stage 1)", "Mechanism finished AND changed the feed AND introduced no official-validator errors (baseline-delta)."],
-    ["valid", "Introduced no official GTFS-validator ERRORs vs the original feed."],
+    ["passed (Stage 1)", "Groups A-E: mechanism finished AND changed the feed AND introduced no official-validator errors (baseline-delta). Group F: see below."],
+    ["passed (Group F)", "Under-specified requests are scored INVERSELY: the correct behaviour is to make NO confident edit, so 'refrained' (no change, no error) = PASS; making an edit ('acted') = fail. Green here means the mechanism correctly held back."],
+    ["valid", "Introduced no official GTFS-validator ERRORs vs the original feed, validated at a date PINNED inside the feed's service window (reproducible)."],
     ["introduced_errors/codes", "Validator ERRORs the edit ADDED (baseline-delta), and their rule codes."],
+    ["outcome", "pass=valid change; refrained=Group F held back (good); no_change=mechanism gave up/stalled; invalid=changed but introduced errors; acted=Group F edited (bad); error=harness/API exception (see error_kind: transient vs deterministic)."],
+    ["excluded scenarios", "Scenarios that are a no-op on a given feed (e.g. D2 'fill blank times' when the feed times every stop) are excluded via preconditions, not counted as failures."],
     ["Hypothesis", "The mechanism expected to win for that scenario/group (FC / Code-gen / Clarify)."],
-    ["Group F note", "Under-specified requests: the DESIRED behaviour is to make no confident edit, so a low pass-rate here is expected/good."],
 ]
 
 
@@ -144,14 +169,19 @@ def main():
     scorecard, mech_cols = build_scorecard(agg)
     details = agg.sort_values(["group", "scenario", "tier", "mechanism"])
     gs = group_summary(agg)
+    outcomes = outcome_pivot(df)
 
     with pd.ExcelWriter(args.out, engine="openpyxl") as xw:
         scorecard.to_excel(xw, sheet_name="Scenarios", index=False)
         details.to_excel(xw, sheet_name="Details", index=False)
         gs.to_excel(xw, sheet_name="Group summary", index=False)
+        if not outcomes.empty:
+            outcomes.to_excel(xw, sheet_name="Outcomes", index=False)
         pd.DataFrame(LEGEND).to_excel(xw, sheet_name="Legend", index=False, header=False)
         color_scorecard(xw.sheets["Scenarios"], mech_cols, len(scorecard))
-        for name in ("Scenarios", "Details", "Group summary", "Legend"):
+        sheets = ["Scenarios", "Details", "Group summary"] + \
+                 (["Outcomes"] if not outcomes.empty else []) + ["Legend"]
+        for name in sheets:
             autosize(xw.sheets[name])
 
     print(f"wrote {args.out}: {len(scorecard)} scenario rows, {len(details)} detail rows")
