@@ -85,7 +85,7 @@ def outcome_pivot(df):
     plus how many hit the FC call ceiling."""
     if "outcome" not in df:
         return pd.DataFrame()
-    order = ["pass", "refrained", "no_change", "invalid", "acted", "error"]
+    order = ["pass", "refrained", "no_change", "invalid", "incomplete", "error", "acted"]
     piv = (df.groupby(["group", "mechanism", "outcome"]).size()
              .unstack("outcome", fill_value=0).reset_index())
     for c in order:

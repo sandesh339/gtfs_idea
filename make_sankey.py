@@ -18,8 +18,8 @@ from matplotlib.patches import PathPatch, Rectangle
 
 FC, CG = "#2D6BF0", "#D97A1E"
 OUT_COLORS = {"pass": "#008300", "refrained": "#2a78d6", "no_change": "#1baf7a",
-              "invalid": "#eda100", "error": "#4a3aa7", "acted": "#e34948"}
-ORDER = ["pass", "refrained", "no_change", "invalid", "error", "acted"]
+              "invalid": "#eda100", "incomplete": "#e87ba4", "error": "#4a3aa7", "acted": "#e34948"}
+ORDER = ["pass", "refrained", "no_change", "invalid", "incomplete", "error", "acted"]
 INK, INK2 = "#10192B", "#4A566B"
 
 
@@ -44,7 +44,7 @@ def main():
 
     W, H, nw, padT, padB, g = 920, 470, 15.0, 30, 16, 12
     Hplot = H - padT - padB
-    s = (Hplot - 5 * g) / V
+    s = (Hplot - (len(ORDER) - 1) * g) / V   # tallest column = the outcomes
     xM, xO, xV = 70.0, (W - nw) / 2, W - 70.0 - nw
 
     passTot = fc["pass"] + cg["pass"] + fc["refrained"] + cg["refrained"]
@@ -89,7 +89,6 @@ def main():
         ax.text(n["x"] + nw + 8, n["y"] + n["h"] / 2, f'{n["id"]}  {n["val"]}', ha="left",
                 va="center", fontsize=11, fontweight="700", color=INK)
     for n in out:
-        lbl = f'{n["id"]}  {n["val"]}'
         if n["h"] > 26:
             ax.text(n["x"] + nw / 2, n["y"] + n["h"] / 2, str(n["val"]), ha="center",
                     va="center", color="white", fontsize=9, fontweight="700", zorder=6)

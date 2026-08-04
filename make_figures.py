@@ -24,8 +24,8 @@ from matplotlib.patches import Patch
 # --- validated palette (light) ---------------------------------------------
 FC, CG = "#2D6BF0", "#D97A1E"
 OUT_COLORS = {"pass": "#008300", "refrained": "#2a78d6", "no_change": "#1baf7a",
-              "invalid": "#eda100", "error": "#4a3aa7", "acted": "#e34948"}
-OUT_ORDER = ["pass", "refrained", "no_change", "invalid", "error", "acted"]
+              "invalid": "#eda100", "incomplete": "#e87ba4", "error": "#4a3aa7", "acted": "#e34948"}
+OUT_ORDER = ["pass", "refrained", "no_change", "invalid", "incomplete", "error", "acted"]
 INK, INK2, GRID = "#10192B", "#4A566B", "#E6E9EF"
 
 plt.rcParams.update({
@@ -135,7 +135,7 @@ def main():
     fig, ax = plt.subplots(figsize=(8.4, 3.1))
     _stacked(ax, ["FC", "CG"], {"FC": obm["FC"], "CG": obm["CG"]}, OUT_ORDER, OUT_COLORS, 351)
     ax.legend(handles=[Patch(color=OUT_COLORS[o], label=o) for o in OUT_ORDER],
-              frameon=False, fontsize=9, ncol=6, loc="upper center", bbox_to_anchor=(0.5, -0.22))
+              frameon=False, fontsize=9, ncol=7, loc="upper center", bbox_to_anchor=(0.5, -0.22))
     ax.set_title("How the two mechanisms fail differently  (351 runs each)",
                  fontweight="700", color=INK, loc="left")
     save(fig, "fig3_outcomes")
