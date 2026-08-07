@@ -16,7 +16,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from .feed import Feed
+from .feed import Feed, seq_int
 
 ENTITY_KEY: Dict[str, str] = {
     "agency.txt": "agency_id",
@@ -111,7 +111,7 @@ def _field_diffs(b: dict, a: dict) -> List[dict]:
 
 def _seq(feed: Feed, trip_id: str) -> List[dict]:
     rows = [r for r in feed.tables.get("stop_times.txt", []) if r["trip_id"] == trip_id]
-    rows.sort(key=lambda r: int(r["stop_sequence"]))
+    rows.sort(key=lambda r: seq_int(r["stop_sequence"]))
     return [{"seq": r["stop_sequence"], "stop_id": r["stop_id"],
              "arr": r.get("arrival_time", ""), "dep": r.get("departure_time", "")} for r in rows]
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import List
 
-from .feed import Feed
+from .feed import Feed, seq_int
 from .timeutil import parse_time
 
 
@@ -34,10 +34,10 @@ def validate_feed(feed: Feed) -> List[str]:
         by_trip.setdefault(r["trip_id"], []).append(r)
 
     for trip_id, rows in by_trip.items():
-        seqs = sorted(int(r["stop_sequence"]) for r in rows)
+        seqs = sorted(seq_int(r["stop_sequence"]) for r in rows)
         if len(set(seqs)) != len(seqs):
             errors.append(f"trip {trip_id} has duplicate stop_sequence values")
-        ordered = sorted(rows, key=lambda r: int(r["stop_sequence"]))
+        ordered = sorted(rows, key=lambda r: seq_int(r["stop_sequence"]))
         prev = None
         for r in ordered:
             for col in ("arrival_time", "departure_time"):

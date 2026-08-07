@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from .feed import Feed
+from .feed import Feed, seq_int
 from .grader import Scenario, Check, Checks
 from .diffing import cell, EntityChange
 from .timeutil import parse_time
@@ -30,7 +30,7 @@ def route_trips(feed: Feed, route_id: str) -> set:
 
 def ordered_stops(feed: Feed, trip_id: str) -> List[str]:
     rows = [r for r in feed.tables.get("stop_times.txt", []) if r["trip_id"] == trip_id]
-    rows.sort(key=lambda r: int(r["stop_sequence"]))
+    rows.sort(key=lambda r: seq_int(r["stop_sequence"]))
     return [r["stop_id"] for r in rows]
 
 
@@ -42,7 +42,7 @@ def stop_time_map(feed: Feed) -> Dict[tuple, tuple]:
 
 def last_departure(feed: Feed, trip_id: str) -> int:
     rows = [r for r in feed.tables.get("stop_times.txt", []) if r["trip_id"] == trip_id]
-    rows.sort(key=lambda r: int(r["stop_sequence"]))
+    rows.sort(key=lambda r: seq_int(r["stop_sequence"]))
     return parse_time(rows[-1].get("departure_time")) if rows else None
 
 
@@ -200,7 +200,7 @@ def _s1_integrity(o: Feed, e: Feed) -> List[Check]:
     c = Checks()
     for trip in ("CITY1", "CITY2"):
         rows = [r for r in e.tables["stop_times.txt"] if r["trip_id"] == trip]
-        seqs = sorted(int(r["stop_sequence"]) for r in rows)
+        seqs = sorted(seq_int(r["stop_sequence"]) for r in rows)
         c.true(f"{trip}: stop_sequence contiguous 1..n", seqs == list(range(1, len(seqs) + 1)),
                str(seqs))
     return c.items

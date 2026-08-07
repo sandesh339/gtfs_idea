@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from .feed import Feed, Row
+from .feed import Feed, Row, seq_int
 from . import scope as scope_mod
 from .timeutil import parse_time, format_time
 
@@ -117,7 +117,7 @@ class GTFSToolkit:
             rows = [r for r in st if r["trip_id"] == t["trip_id"]]
             if len(rows) > len(best_rows):
                 best, best_rows = t, rows
-        best_rows.sort(key=lambda r: int(r["stop_sequence"]))
+        best_rows.sort(key=lambda r: seq_int(r["stop_sequence"]))
         names = {s["stop_id"]: s.get("stop_name", "") for s in self.feed.tables.get("stops.txt", [])}
         stops = [{"stop_sequence": r["stop_sequence"], "stop_id": r["stop_id"],
                   "stop_name": names.get(r["stop_id"], ""), "arrival_time": r.get("arrival_time", "")}
@@ -134,7 +134,7 @@ class GTFSToolkit:
             for r in self.feed.tables.get("stop_times.txt", [])
             if r["trip_id"] == trip_id
         ]
-        rows.sort(key=lambda r: int(r["stop_sequence"]))
+        rows.sort(key=lambda r: seq_int(r["stop_sequence"]))
         return {"ok": True, "trip_id": trip_id, "stop_times": rows, "count": len(rows)}
 
     # ===== WRITE-SINGLE ==================================================
@@ -308,6 +308,36 @@ class GTFSToolkit:
             r for r in self.feed.tables.get("stop_times.txt", []) if r["trip_id"] != trip_id]
         return {"ok": True, "trip_id": trip_id, "stop_times_removed": len(removed)}
 
+    def update_calendar(self, service_id: str, monday: Optional[str] = None,
+                        tuesday: Optional[str] = None, wednesday: Optional[str] = None,
+                        thursday: Optional[str] = None, friday: Optional[str] = None,
+                        saturday: Optional[str] = None, sunday: Optional[str] = None,
+                        start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict:
+        """Edit ONE calendar.txt row: weekday flags (1=runs, 0=no) and/or the
+        start_date/end_date span. Only the provided fields change."""
+        row = self._find_one("calendar.txt", "service_id", service_id)
+        if row is None:
+            return {"ok": False, "error": f"no service {service_id!r} in calendar.txt"}
+        changed = {}
+        for col, val in (("monday", monday), ("tuesday", tuesday), ("wednesday", wednesday),
+                         ("thursday", thursday), ("friday", friday), ("saturday", saturday),
+                         ("sunday", sunday), ("start_date", start_date), ("end_date", end_date)):
+            if val is not None:
+                self.feed.ensure_column("calendar.txt", col)
+                row[col] = str(val)
+                changed[col] = str(val)
+        return {"ok": True, "service_id": service_id, "changed": changed}
+
+    def add_calendar_exception(self, service_id: str, date: str,
+                               exception_type: str) -> Dict:
+        """Add ONE calendar_dates.txt row overriding a service on a single date.
+        exception_type 1 = service ADDED that day, 2 = service REMOVED that day."""
+        row = self.feed.new_row("calendar_dates.txt")
+        row.update(service_id=service_id, date=str(date), exception_type=str(exception_type))
+        self.feed.table("calendar_dates.txt").append(row)
+        return {"ok": True, "service_id": service_id, "date": str(date),
+                "exception_type": str(exception_type)}
+
     # ===== WRITE-SCOPE (the only set-level ops) ==========================
     def shift_times(self, scope: str, offset_secs: str) -> Dict:
         """Add offset_secs (may be negative) to arrival AND departure for every
@@ -342,7 +372,7 @@ class GTFSToolkit:
         rows = self.feed.tables.get("stop_times.txt", [])
         for tid in trip_ids:
             trip_rows = [r for r in rows if r["trip_id"] == tid]
-            trip_rows.sort(key=lambda r: int(r["stop_sequence"]))
+            trip_rows.sort(key=lambda r: seq_int(r["stop_sequence"]))
             for new_seq, r in enumerate(trip_rows, start=1):
                 r["stop_sequence"] = str(new_seq)
         return {"ok": True, "scope": scope, "trips_renumbered": len(trip_ids)}
@@ -416,6 +446,15 @@ TOOL_SCHEMAS: List[Dict] = [
                       ["route_id", "service_id", "trip_id"])},
     {"name": "delete_trip", "description": "Remove a trip AND all of its stop_times rows.",
      "parameters": _p({"trip_id": _S()}, ["trip_id"])},
+    {"name": "update_calendar", "description": "Edit ONE calendar.txt row for a service: weekday flags monday..sunday (1=runs that day, 0=does not) and/or start_date/end_date (YYYYMMDD). Only provided fields change.",
+     "parameters": _p({"service_id": _S(), "monday": _OPT("1 or 0"), "tuesday": _OPT("1 or 0"),
+                       "wednesday": _OPT("1 or 0"), "thursday": _OPT("1 or 0"), "friday": _OPT("1 or 0"),
+                       "saturday": _OPT("1 or 0"), "sunday": _OPT("1 or 0"),
+                       "start_date": _OPT("YYYYMMDD"), "end_date": _OPT("YYYYMMDD")}, ["service_id"])},
+    {"name": "add_calendar_exception", "description": "Add ONE calendar_dates.txt row overriding a service on a date. exception_type 1 = service ADDED that day, 2 = service REMOVED that day.",
+     "parameters": _p({"service_id": _S(), "date": _S("YYYYMMDD"),
+                       "exception_type": _S("1 (added) or 2 (removed)")},
+                      ["service_id", "date", "exception_type"])},
     # WRITE-SCOPE
     {"name": "shift_times", "description": "Add offset_secs (may be negative) to arrival AND departure for every stop_times row matching scope. Scope grammar: field op value [AND ...], fields=route|service|trip|direction|seq, e.g. 'service=FULLW' or 'trip=CITY1 AND seq>4'.",
      "parameters": _p({"scope": _S("selector, e.g. service=FULLW"),

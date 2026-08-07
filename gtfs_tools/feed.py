@@ -18,6 +18,20 @@ from typing import Dict, List
 Row = Dict[str, str]
 
 
+def seq_int(value) -> int:
+    """stop_sequence as an int for ordering, tolerating float-like strings.
+
+    GTFS requires stop_sequence to be a non-negative integer, but a generated
+    program may emit '1.0' etc. We must not crash on that (the official
+    validator, not a Python exception, should judge such output invalid), so
+    parse leniently and fall back to 0 for blank/garbage.
+    """
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
 class Feed:
     def __init__(self) -> None:
         # table name (e.g. "stops.txt") -> list of row dicts
