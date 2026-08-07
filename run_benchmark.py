@@ -30,6 +30,7 @@ from gtfs_tools.executor import ReActExecutor
 from gtfs_tools.codegen import CodeGenExecutor
 from gtfs_tools.llm import OpenAIClient
 from gtfs_tools.diffing import summarize_changes
+from gtfs_tools.run_store import save_edit
 from gtfs_tools.validation_summary import ValidatorSummarizer, representative_date
 from benchmark_scenarios import SCENARIOS_BY_FEED, SCENARIOS
 from oracle import run_check, CHECKS as ORACLE_CHECKS
@@ -69,6 +70,7 @@ MECHANISMS = ("fc", "codegen")
 
 # feeds are parsed once and cloned per run (MBTA slice is ~350k stop_times rows).
 _FEED_CACHE = {}
+_SAVE_DIR = None   # if set, each changed run's edited-feed delta is persisted here
 
 
 def get_pristine(feed_dir):
@@ -109,6 +111,9 @@ def main() -> int:
                          "(otherwise a transient failure becomes a permanent gap)")
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel workers (runs are I/O-bound; try 3-4). 1 = sequential")
+    ap.add_argument("--save-dir", default="runs",
+                    help="persist each changed run's edited-feed delta here so correctness/"
+                         "damage can be re-graded OFFLINE (no API) later; pass '' to disable")
     args = ap.parse_args()
 
     load_dotenv(override=True)
@@ -116,6 +121,8 @@ def main() -> int:
     if not key:
         print("ERROR: set OPENAI_API_KEY in .env"); return 1
     base_url = os.getenv("OPENAI_BASE_URL")
+    global _SAVE_DIR
+    _SAVE_DIR = args.save_dir or None
 
     models = dict(DEFAULT_MODELS)
     if args.models:
@@ -201,10 +208,13 @@ def main() -> int:
                 counter["n"] += 1
                 out.write(json.dumps(row) + "\n"); out.flush()
                 mark = "PASS" if row["passed"] else ("ERR" if row.get("error") else "fail")
-                print(f"[{counter['n']}/{ntodo}] {row['tier']:4s} {row['mechanism']:7s} "
-                      f"{row['feed']} {row['scenario']:3s} t{row['trial']}: {mark} "
-                      f"valid={row['valid']} changed={row['changed']} calls={row['calls']} "
-                      f"lat={row['latency_s']}s")
+                try:  # never let a broken/closed stdout kill the recording loop
+                    print(f"[{counter['n']}/{ntodo}] {row['tier']:4s} {row['mechanism']:7s} "
+                          f"{row['feed']} {row['scenario']:3s} t{row['trial']}: {mark} "
+                          f"valid={row['valid']} changed={row['changed']} calls={row['calls']} "
+                          f"lat={row['latency_s']}s", flush=True)
+                except Exception:
+                    pass
 
         if args.workers <= 1:
             for spec in tasks:
@@ -272,6 +282,15 @@ def run_one(model_id, tier, mech, feed_name, feed_dir, sid, group, hyp, request,
         row["correct_reason"] = (chk.reason or "")[:120]
         row["passed2"] = bool(row["passed"] and chk.ok)   # completed a CORRECT valid change
         row["ceiling"] = "max_steps" in (row["stop_reason"] or "")
+        # Persist the edited-feed delta so this run can be re-graded offline (free).
+        row["edit_path"] = None
+        if changed and _SAVE_DIR:
+            try:
+                p = os.path.join(_SAVE_DIR, feed_name, f"{tier}_{mech}_{sid}_t{trial}.json.gz")
+                save_edit(p, pristine, edit)
+                row["edit_path"] = p
+            except Exception:
+                row["edit_path"] = None
         row["error"] = None
         row["error_kind"] = None
     except Exception as e:
