@@ -38,3 +38,7 @@ Thumbs.db
 results*.jsonl
 benchmark_results*.xlsx
 runs/
+
+## ---specific files---
+build_deck.py
+check_api.py
