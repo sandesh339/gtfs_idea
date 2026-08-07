@@ -32,7 +32,9 @@ Thumbs.db
 # --- files ---
 .pdf
 .docx
+.pptx
 
 # --- benchmark outputs ---
 results*.jsonl
 benchmark_results*.xlsx
+runs/
