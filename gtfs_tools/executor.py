@@ -25,9 +25,19 @@ SYSTEM_PROMPT = """You are a GTFS feed editor. You modify a transit feed ONLY by
 Rules:
 - Make exactly the change the user asked for, and nothing else.
 - Look things up first (find_*, list_trips, get_stop_times) — never guess an id.
-- The tools are deliberately small. Structural edits require composing many calls:
-  insert/shift/renumber are separate steps and you must orchestrate them yourself,
-  including computing interpolated times.
+- Act by calling tools, and resolve RESOLVABLE ambiguity yourself: if a name
+  matches several stops (a station and its platforms often share one name, and a
+  stop can appear in both directions), apply the change to EVERY matching stop.
+- Do NOT invent missing information. If the request is genuinely under-specified
+  (it does not say which route/stop/value/amount to use), make NO edit — briefly
+  state the one clarification you need instead of guessing.
+- For edits that span many rows (shifting or renumbering a whole route or
+  service), prefer the set-level tools shift_times and renumber_sequence over
+  editing rows one at a time — it is faster and less error-prone.
+- Structural edits require composing several calls: insert/shift/renumber are
+  separate steps you orchestrate yourself, including interpolating new times.
+  Keep stop_sequence contiguous (1..n) and times non-decreasing; times after
+  midnight may exceed 24:00:00 (e.g. 25:10:00).
 - When, and only when, the requested change is fully applied, call finish.
 - If validation comes back with errors after finish, fix them and call finish again.
 """
@@ -56,11 +66,12 @@ class RunResult:
 
 class ReActExecutor:
     def __init__(self, client: LLMClient, *, max_steps: int = 50,
-                 repair_rounds: int = 3,
+                 repair_rounds: int = 3, max_nudges: int = 2,
                  validator: Callable[[Feed], List[str]] = validate_feed):
         self.client = client
         self.max_steps = max_steps
         self.repair_rounds = repair_rounds
+        self.max_nudges = max_nudges
         self.validator = validator
 
     def run(self, feed: Feed, request: str, feed_metadata: str = "") -> RunResult:
@@ -74,6 +85,7 @@ class ReActExecutor:
             {"role": "user", "content": user},
         ]
         repair_left = self.repair_rounds
+        nudges_left = self.max_nudges
 
         for _ in range(self.max_steps):
             turn: AssistantTurn = self.client.complete(messages, TOOL_SCHEMAS)
@@ -84,6 +96,18 @@ class ReActExecutor:
             })
 
             if not turn.tool_calls:
+                # Don't give up on a plain-text reply — nudge back to acting. This
+                # rescues the common "there are N matches, which one?" stall.
+                if nudges_left > 0:
+                    nudges_left -= 1
+                    messages.append({"role": "system", "content":
+                        "You replied without calling a tool. If the requested change is "
+                        "clear, make it now with tool calls — and if one name matched "
+                        "several stops (a station and its platforms), apply it to ALL of "
+                        "them — then call finish. ONLY if the request is genuinely "
+                        "under-specified (it doesn't say which route/stop/value/amount) "
+                        "should you decline and make no edit."})
+                    continue
                 result.stop_reason = "model stopped without calling finish"
                 return result
 

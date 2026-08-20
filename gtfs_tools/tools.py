@@ -151,7 +151,8 @@ class GTFSToolkit:
     def update_stop(self, stop_id: str, stop_name: Optional[str] = None,
                     stop_lat: Optional[str] = None, stop_lon: Optional[str] = None,
                     wheelchair_boarding: Optional[str] = None,
-                    zone_id: Optional[str] = None) -> Dict:
+                    zone_id: Optional[str] = None, stop_desc: Optional[str] = None,
+                    stop_code: Optional[str] = None) -> Dict:
         """Edit fields of one stop. Only the provided fields change."""
         row = self._find_one("stops.txt", "stop_id", stop_id)
         if row is None:
@@ -160,7 +161,8 @@ class GTFSToolkit:
         for col, val in (("stop_name", stop_name), ("stop_lat", stop_lat),
                          ("stop_lon", stop_lon),
                          ("wheelchair_boarding", wheelchair_boarding),
-                         ("zone_id", zone_id)):
+                         ("zone_id", zone_id), ("stop_desc", stop_desc),
+                         ("stop_code", stop_code)):
             if val is not None:
                 self.feed.ensure_column("stops.txt", col)
                 row[col] = str(val)
@@ -413,10 +415,11 @@ TOOL_SCHEMAS: List[Dict] = [
     {"name": "add_stop", "description": "Create ONE stop. Fails if stop_id exists.",
      "parameters": _p({"stop_id": _S(), "stop_name": _S(), "stop_lat": _S(), "stop_lon": _S()},
                       ["stop_id", "stop_name", "stop_lat", "stop_lon"])},
-    {"name": "update_stop", "description": "Edit fields of ONE stop (stop_name, stop_lat, stop_lon, wheelchair_boarding, zone_id). Only provided fields change; columns are created if absent.",
+    {"name": "update_stop", "description": "Edit fields of ONE stop (stop_name, stop_lat, stop_lon, wheelchair_boarding, zone_id, stop_desc, stop_code). Only provided fields change; columns are created if absent.",
      "parameters": _p({"stop_id": _S(), "stop_name": _OPT(), "stop_lat": _OPT(),
                        "stop_lon": _OPT(), "wheelchair_boarding": _OPT("0,1,2"),
-                       "zone_id": _OPT()}, ["stop_id"])},
+                       "zone_id": _OPT(), "stop_desc": _OPT("stop description text"),
+                       "stop_code": _OPT("public stop code")}, ["stop_id"])},
     {"name": "delete_stop", "description": "Remove a stop. Refuses if any stop_times still reference it.",
      "parameters": _p({"stop_id": _S()}, ["stop_id"])},
     {"name": "update_route", "description": "Edit fields of ONE route (short/long name, color, text_color, desc). Only provided fields change.",
