@@ -38,6 +38,15 @@ Task:
 - Read the relevant file(s), make EXACTLY the requested change and nothing else,
   and write the file(s) back IN PLACE (same filenames, CSV, keep all columns).
 - Do not print anything you don't need. Do not touch unrelated rows or files.
+- Integer fields (stop_sequence, direction_id, exception_type, calendar day
+  flags) MUST serialise as plain integers — '1', never '1.0'. pandas turns an
+  integer column to float the moment it holds one NaN, so cast such columns back
+  with .astype(int) (or read/write with dtype=str). Keep stop_sequence
+  contiguous (1..n) per trip and arrival/departure times non-decreasing.
+- Trips that share a block_id are one vehicle's consecutive work, so their
+  stop_times must NOT overlap in time. If shifting times or adding/mirroring
+  trips would make same-block trips overlap, clear block_id on the affected
+  trips (block_id is optional) so the feed stays valid.
 
 Name resolution:
 - Entity names in the request may be PARTIAL and may omit suffixes present in the

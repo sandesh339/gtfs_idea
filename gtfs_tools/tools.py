@@ -45,13 +45,28 @@ class GTFSToolkit:
     def find_stop(self, query: str) -> Dict:
         """Look up stops by stop_id (exact) or stop_name (case-insensitive substring)."""
         q = query.lower()
+        rows = [r for r in self.feed.tables.get("stops.txt", [])
+                if r["stop_id"] == query or q in r.get("stop_name", "").lower()]
         hits = [
             {"stop_id": r["stop_id"], "stop_name": r.get("stop_name", ""),
-             "stop_lat": r.get("stop_lat", ""), "stop_lon": r.get("stop_lon", "")}
-            for r in self.feed.tables.get("stops.txt", [])
-            if r["stop_id"] == query or q in r.get("stop_name", "").lower()
+             "stop_lat": r.get("stop_lat", ""), "stop_lon": r.get("stop_lon", ""),
+             "location_type": (r.get("location_type") or "0"),
+             "parent_station": r.get("parent_station", "")}
+            for r in rows
         ]
-        return {"ok": True, "matches": hits, "count": len(hits)}
+        out = {"ok": True, "matches": hits, "count": len(hits)}
+        if len(hits) > 1:
+            # A GTFS "stop" is often one place split into a station (location_type 1)
+            # and its child platforms — all sharing a name. Weak models stall here;
+            # tell them explicitly to act on ALL of them so the edit completes.
+            stations = [h for h in hits if h["location_type"] == "1"]
+            note = f"{len(hits)} stops share this name"
+            if stations:
+                note += f" ({len(stations)} station + {len(hits) - len(stations)} platform/stop)"
+            out["hint"] = (note + ". This is one place (a station and its platforms), not a "
+                           "real choice — apply the requested change to ALL of these stop_ids "
+                           "so the edit is complete. Do NOT stop to ask and do NOT pick only one.")
+        return out
 
     def find_route(self, query: str) -> Dict:
         """Look up routes by route_id (exact) or short/long name (substring)."""
