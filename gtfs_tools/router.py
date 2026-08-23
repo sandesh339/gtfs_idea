@@ -40,9 +40,20 @@ Decide three things:
      logic better written as a program.
    - "medium": in between / genuinely contested.
 
-2) ambiguous — true if the request is missing information needed to act safely:
-   which route/trip/stop, which time window, coordinates, the target value, or the
-   intended outcome. If true, the system will ASK rather than guess.
+2) ambiguous — true ONLY when the request genuinely lacks the information needed
+   to act: no target named (no route/stop/trip/service), OR no value/amount/date
+   given, OR the intended outcome is unclear. It is NOT ambiguous when:
+   - a target IS named but the name matches several rows (a station and its
+     platforms often share one name, a stop appears in both directions) — that is
+     resolvable, act on all matches; do NOT ask;
+   - the task is complex, structural, or multi-step (split a route, shift a whole
+     service, insert/remove a stop, mirror trips) but the target and value are
+     clear — that is LOW tool_fit, not ambiguous.
+   Examples: "make the morning buses come more often" (no route, no headway) ->
+   ambiguous; "rename the stop 'Nubian' to 'Nubian Square'" and "split route 1 at
+   Downtown Crossing into North/South" -> NOT ambiguous. When in doubt and a
+   concrete target and value are present, prefer NOT ambiguous.
+   If true, the system will ASK rather than guess.
 
 3) confidence — your certainty (0..1).
 
