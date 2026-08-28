@@ -50,11 +50,18 @@ class LLMClient(ABC):
 class OpenAIClient(LLMClient):
     """GPT family via the OpenAI chat-completions API."""
 
+    # OpenAI rejects an assistant message carrying more than this many tool_calls
+    # (400 array_above_max_length). Models sometimes fan a bulk edit out into
+    # hundreds of single-row calls in ONE turn; we keep the first N and let the
+    # ReAct loop continue with the rest next turn instead of crashing the run.
+    MAX_TOOL_CALLS_PER_TURN = 128
+
     def __init__(self, model: str, api_key: str, base_url: Optional[str] = None):
         from openai import OpenAI
         self.model = model
         self.name = f"openai:{model}"
         self.total_tokens = 0     # accumulated across this client's calls (for the benchmark)
+        self.truncated_turns = 0  # times a turn's tool_calls were capped to the API limit
         self._client = OpenAI(api_key=api_key, base_url=base_url or None)
 
     def _account(self, resp):
@@ -104,6 +111,13 @@ class OpenAIClient(LLMClient):
             except json.JSONDecodeError:
                 args = {"__raw__": tc.function.arguments}
             calls.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args))
+        if len(calls) > self.MAX_TOOL_CALLS_PER_TURN:
+            # Bulk edit fanned out past the API cap: keep the first batch, drop
+            # the rest. Every kept call still gets a tool response in the loop,
+            # so the stored assistant message stays valid; the model reissues
+            # the remaining edits next turn.
+            self.truncated_turns += 1
+            calls = calls[:self.MAX_TOOL_CALLS_PER_TURN]
         return AssistantTurn(text=msg.content, tool_calls=calls)
 
     def complete_json(self, messages: List[Dict], schema: Dict, name: str = "response") -> dict:
