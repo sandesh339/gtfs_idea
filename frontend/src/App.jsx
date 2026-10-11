@@ -222,7 +222,11 @@ export default function App() {
       text: 'Generated a program — running it safely in your browser…' })
     let program = r.program
     let calls = 1, repairs = 0
-    const snapshot = await api.feed(sid)          // program runs against this feed each attempt
+    // full=true: the sandbox writes every table to a file, and generated
+    // programs routinely read stop_times.txt, which the default light
+    // payload omits — using the light feed here caused every stop_times
+    // edit to fail with FileNotFoundError.
+    const snapshot = await api.feed(sid, { full: true })   // program runs against this feed each attempt
     for (;;) {
       const exec = await runCodegen(program, snapshot, (t) => setStatus(sid, t))
       let error = null

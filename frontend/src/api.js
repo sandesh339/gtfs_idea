@@ -84,7 +84,11 @@ export const api = {
 
   undo: (sid) => req(`/api/session/${sid}/undo`, { method: 'POST' }),
 
-  feed: (sid) => req(`/api/session/${sid}/feed`),
+  // full=true bypasses the light/HEAVY_TABLES payload trim (needed before the
+  // code-generation sandbox runs, since it writes every table to a file and
+  // generated programs often read stop_times.txt).
+  feed: (sid, { full = false } = {}) =>
+    req(`/api/session/${sid}/feed${full ? '?light=false' : ''}`),
 
   exists: (sid) => req(`/api/session/${sid}/exists`),
 

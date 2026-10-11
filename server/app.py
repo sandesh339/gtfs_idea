@@ -298,11 +298,16 @@ def validate_feed_endpoint(sid: str):
 
 
 @app.get("/api/session/{sid}/feed", dependencies=[Depends(require_token)])
-def get_feed(sid: str):
+def get_feed(sid: str, light: bool = True):
+    """light=True (default): the map/overview payload, HEAVY_TABLES (stop_times.txt)
+    omitted to keep it small. The code-generation sandbox needs the FULL feed
+    (it writes every table to a file and generated programs routinely read
+    stop_times.txt), so it must call this with light=False — see api.js's
+    `feed(sid, { full: true })`."""
     session = store().get(sid)
     if session is None:
         raise HTTPException(status_code=404, detail="unknown or expired session")
-    return feed_json(session.feed, light=True)
+    return feed_json(session.feed, light=light)
 
 
 @app.get("/api/session/{sid}/table/{name}", dependencies=[Depends(require_token)])
