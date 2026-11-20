@@ -1,0 +1,3 @@
+route_id,agency_id,route_short_name,route_long_name,route_desc,route_type,route_color,route_text_color
+TTS,30091,TTS,Two Town Trolley Spradlin Farms,Two Town Trolley Spradlin Farms,3,EE7C0E,000000
+GRN,30091,GRN,Explorer Green,,3,84B817,000000

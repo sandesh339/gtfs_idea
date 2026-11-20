@@ -34,7 +34,7 @@ from .validation import make_validator
 
 load_dotenv(override=True)
 
-DEMO_FEED_DIR = os.path.join("data", "sample-feed")
+DEMO_FEED_DIR = os.path.join("data", "demo_small")
 
 app = FastAPI(title="GTFS Chatbot API")
 app.add_middleware(
